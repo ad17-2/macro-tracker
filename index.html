@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Macro Tracker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    padding: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1a1a2e;
+  }
+
+  header .timestamp {
+    font-size: 0.82rem;
+    color: #777;
+    margin-top: 4px;
+  }
+
+  .verdict-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    text-align: center;
+  }
+
+  .verdict-badge {
+    display: inline-block;
+    padding: 10px 28px;
+    border-radius: 8px;
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    margin-bottom: 6px;
+  }
+
+  .verdict-badge.risk-on { background: #d4edda; color: #155724; }
+  .verdict-badge.leaning-risk-on { background: #fff3cd; color: #856404; }
+  .verdict-badge.mixed { background: #ffe0cc; color: #8a4500; }
+  .verdict-badge.risk-off { background: #f8d7da; color: #721c24; }
+
+  .verdict-score {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 4px;
+    margin-bottom: 20px;
+  }
+
+  .signals-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  @media (max-width: 600px) {
+    .signals-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .signal-card {
+    border-radius: 8px;
+    padding: 14px 12px;
+    text-align: center;
+  }
+
+  .signal-card.clear { background: #e8f5e9; border: 1px solid #a5d6a7; }
+  .signal-card.caution { background: #fce4ec; border: 1px solid #ef9a9a; }
+
+  .signal-card .signal-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #555;
+    letter-spacing: 0.04em;
+  }
+
+  .signal-card .signal-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 4px 0;
+  }
+
+  .signal-card.clear .signal-value { color: #2e7d32; }
+  .signal-card.caution .signal-value { color: #c62828; }
+
+  .signal-card .signal-threshold {
+    font-size: 0.72rem;
+    color: #888;
+  }
+
+  .signal-card .signal-status {
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .signal-card.clear .signal-status { color: #2e7d32; }
+  .signal-card.caution .signal-status { color: #c62828; }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  @media (max-width: 700px) {
+    .cards-grid { grid-template-columns: 1fr; }
+  }
+
+  .data-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .data-card h2 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #444;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #f0f2f5;
+  }
+
+  .data-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid #f5f5f5;
+  }
+
+  .data-row:last-child { border-bottom: none; }
+
+  .data-name {
+    font-size: 0.82rem;
+    color: #555;
+    flex: 1;
+  }
+
+  .data-value {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #1a1a2e;
+    text-align: right;
+    min-width: 80px;
+  }
+
+  .data-change {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-align: right;
+    min-width: 70px;
+    margin-left: 8px;
+  }
+
+  .data-change.positive { color: #2e7d32; }
+  .data-change.negative { color: #c62828; }
+  .data-change.neutral { color: #999; }
+
+  .na { color: #bbb; font-style: italic; }
+
+  .spread-note {
+    font-size: 0.72rem;
+    color: #888;
+    margin-top: 6px;
+    text-align: right;
+  }
+
+  #error-banner {
+    display: none;
+    background: #fff3cd;
+    color: #856404;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.85rem;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Macro Tracker</h1>
+  <div class="timestamp" id="timestamp">Loading...</div>
+</header>
+
+<div id="error-banner"></div>
+
+<div class="verdict-section" id="verdict-section">
+  <div class="verdict-badge" id="verdict-badge">—</div>
+  <div class="verdict-score" id="verdict-score"></div>
+  <div class="signals-row" id="signals-row"></div>
+</div>
+
+<div class="cards-grid" id="cards-grid"></div>
+
+<script>
+(async function() {
+  const banner = document.getElementById("error-banner");
+
+  let data;
+  try {
+    const resp = await fetch("data.json");
+    if (!resp.ok) throw new Error("Failed to load data.json");
+    data = await resp.json();
+  } catch (e) {
+    banner.textContent = "Could not load data.json. Run python fetch.py first.";
+    banner.style.display = "block";
+    return;
+  }
+
+  document.getElementById("timestamp").textContent =
+    "Last updated: " + new Date(data.timestamp).toLocaleString();
+
+  renderVerdict(data.verdict);
+  renderSignals(data.signals);
+  renderCards(data);
+
+  function renderVerdict(verdict) {
+    const badge = document.getElementById("verdict-badge");
+    const score = document.getElementById("verdict-score");
+
+    const classMap = {
+      "FULL RISK-ON": "risk-on",
+      "LEANING RISK-ON": "leaning-risk-on",
+      "MIXED": "mixed",
+      "RISK-OFF": "risk-off"
+    };
+
+    const emojiMap = {
+      "FULL RISK-ON": "\u{1F7E2}",
+      "LEANING RISK-ON": "\u{1F7E1}",
+      "MIXED": "\u{1F7E0}",
+      "RISK-OFF": "\u{1F534}"
+    };
+
+    badge.textContent = (emojiMap[verdict.label] || "") + " " + verdict.label;
+    badge.className = "verdict-badge " + (classMap[verdict.label] || "");
+    score.textContent = verdict.score + "/" + verdict.total + " signals clear";
+  }
+
+  function renderSignals(signals) {
+    const row = document.getElementById("signals-row");
+    row.innerHTML = "";
+
+    const labels = { vix: "VIX", dxy: "DXY", ust2y: "UST 2Y", btc: "BTC" };
+    const fmt = { vix: v => v.toFixed(2), dxy: v => v.toFixed(2), ust2y: v => v.toFixed(2) + "%", btc: v => "$" + v.toLocaleString() };
+    const threshFmt = { vix: "< 20", dxy: "< 98", ust2y: "< 3.50%", btc: "> $72,000" };
+
+    for (const [key, signal] of Object.entries(signals)) {
+      const card = document.createElement("div");
+      card.className = "signal-card " + signal.status;
+      card.setAttribute("data-signal", key);
+
+      const valStr = signal.value != null ? (fmt[key] ? fmt[key](signal.value) : signal.value) : "N/A";
+      const statusStr = signal.status === "clear" ? "\u2705 CLEAR" : "\u{1F534} CAUTION";
+
+      card.innerHTML =
+        '<div class="signal-name">' + labels[key] + '</div>' +
+        '<div class="signal-value">' + valStr + '</div>' +
+        '<div class="signal-threshold">Target: ' + threshFmt[key] + '</div>' +
+        '<div class="signal-status">' + statusStr + '</div>';
+
+      row.appendChild(card);
+    }
+  }
+
+  function renderCards(data) {
+    const grid = document.getElementById("cards-grid");
+    grid.innerHTML = "";
+
+    const sections = [
+      { key: "equities", title: "Equities" },
+      { key: "fx_rates", title: "FX & Rates" },
+      { key: "commodities", title: "Commodities" },
+      { key: "energy", title: "Energy" },
+      { key: "crypto", title: "Crypto" }
+    ];
+
+    const unitHints = {
+      "ust2y": "%", "ust10y": "%", "fed_funds": "%", "bi_rate": "%",
+      "indo_10y": "%", "spread_2s10s": "%", "hy_spread": "%", "vix": ""
+    };
+
+    for (const section of sections) {
+      const sectionData = data[section.key];
+      if (!sectionData) continue;
+
+      const card = document.createElement("div");
+      card.className = "data-card";
+      card.setAttribute("data-section", section.key);
+
+      let html = '<h2>' + section.title + '</h2>';
+
+      for (const [key, item] of Object.entries(sectionData)) {
+        const valStr = item.value != null ? formatValue(key, item.value) : '<span class="na">N/A</span>';
+        const unit = unitHints[key] || "";
+        const changeStr = formatChange(item.change, key);
+
+        html +=
+          '<div class="data-row" data-key="' + key + '">' +
+            '<span class="data-name">' + item.name + '</span>' +
+            '<span class="data-value">' + valStr + (item.value != null ? unit : "") + '</span>' +
+            '<span class="data-change ' + changeClass(item.change) + '">' + changeStr + '</span>' +
+          '</div>';
+      }
+
+      if (section.key === "fx_rates") {
+        const spread = sectionData.spread_2s10s;
+        if (spread && spread.value != null) {
+          const inverted = spread.value < 0;
+          html += '<div class="spread-note">' + (inverted ? "Curve inverted" : "Curve normal") + '</div>';
+        }
+      }
+
+      card.innerHTML = html;
+      grid.appendChild(card);
+    }
+  }
+
+  function formatValue(key, val) {
+    if (val == null) return "N/A";
+    if (key === "btc" || key === "eth") return "$" + val.toLocaleString(undefined, {maximumFractionDigits: 0});
+    if (key === "usdidr") return val.toLocaleString(undefined, {maximumFractionDigits: 0});
+    if (key === "sp500" || key === "nasdaq" || key === "ihsg") return val.toLocaleString(undefined, {maximumFractionDigits: 2});
+    if (key === "gold" || key === "silver" || key === "brent" || key === "wti" || key === "coal" || key === "natgas" || key === "cpo") return val.toLocaleString(undefined, {maximumFractionDigits: 2});
+    if (key === "nickel" || key === "aluminium" || key === "tin") return val.toLocaleString(undefined, {maximumFractionDigits: 0});
+    if (key === "copper") return val.toFixed(4);
+    return typeof val === "number" ? val.toFixed(2) : val;
+  }
+
+  function formatChange(change, key) {
+    if (change == null) return '<span class="neutral">\u2014</span>';
+    const arrow = change > 0 ? "\u25B2" : change < 0 ? "\u25BC" : "";
+    const sign = change > 0 ? "+" : "";
+
+    const isAbsolute = ["ust2y", "ust10y", "fed_funds", "bi_rate", "indo_10y", "spread_2s10s", "hy_spread"].includes(key);
+    if (isAbsolute) {
+      return arrow + " " + sign + change.toFixed(2);
+    }
+    return arrow + " " + sign + change.toFixed(2) + "%";
+  }
+
+  function changeClass(change) {
+    if (change == null) return "neutral";
+    return change > 0 ? "positive" : change < 0 ? "negative" : "neutral";
+  }
+})();
+</script>
+</body>
+</html>
