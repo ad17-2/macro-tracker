@@ -81,6 +81,9 @@ test-results/
 *.png
 !docs/**/*.png
 
+# Brainstorm / spec artifacts (local-only)
+docs/superpowers/
+
 # Logs
 *.log
 logs/
