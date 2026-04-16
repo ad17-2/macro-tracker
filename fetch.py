@@ -14,6 +14,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 TIMEOUT = 15
+HISTORY_DAYS = 30
 
 
 def get_yahoo_session():
@@ -306,7 +307,117 @@ def compute_signals(data):
     return signals, verdict
 
 
-def build_output(yahoo, fred, crypto, scraped):
+def load_history(path):
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[WARN] Failed to load history: {e}")
+        return {}
+
+
+def save_history(path, history):
+    dates = sorted(history.keys())
+    if len(dates) > HISTORY_DAYS:
+        for old in dates[:-HISTORY_DAYS]:
+            del history[old]
+    with open(path, "w") as f:
+        json.dump(history, f, indent=2)
+
+
+def flatten_snapshot(output):
+    flat = {}
+    for section in ("equities", "fx_rates", "commodities", "energy", "crypto"):
+        for key, item in output.get(section, {}).items():
+            if item.get("value") is not None:
+                flat[key] = item["value"]
+    flat["_signals"] = {k: s["status"] for k, s in output.get("signals", {}).items()}
+    flat["_verdict_score"] = output.get("verdict", {}).get("score")
+    return flat
+
+
+def previous_day_snapshot(history):
+    dates = sorted(history.keys())
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for d in reversed(dates):
+        if d < today:
+            return history[d]
+    return None
+
+
+def generate_attention(data, fred, scraped, signals, verdict, prev_snapshot):
+    bullets = []
+
+    def change_of(src, key):
+        return src.get(key, {}).get("change")
+
+    def value_of(src, key):
+        return src.get(key, {}).get("value")
+
+    vix = value_of(data, "vix")
+    if vix is not None and vix > 25:
+        bullets.append(f"VIX at {vix:.1f} — fear elevated, defensive positioning warranted")
+
+    idr_chg = change_of(data, "usdidr")
+    idr_val = value_of(data, "usdidr")
+    if idr_chg is not None and idr_val is not None and abs(idr_chg) > 0.5:
+        direction = "weakening" if idr_chg > 0 else "strengthening"
+        bullets.append(f"IDR {direction} {abs(idr_chg):.2f}% to {idr_val:,.0f} — watch import costs / BI policy")
+
+    nickel_chg = change_of(scraped, "nickel_lme")
+    if nickel_chg is not None and abs(nickel_chg) > 2:
+        direction = "surged" if nickel_chg > 0 else "dropped"
+        bullets.append(f"Nickel {direction} {abs(nickel_chg):.2f}% — top Indonesian export, earnings impact")
+
+    coal_chg = change_of(scraped, "coal")
+    if coal_chg is not None and abs(coal_chg) > 2:
+        direction = "up" if coal_chg > 0 else "down"
+        bullets.append(f"Newcastle coal {direction} {abs(coal_chg):.2f}% — Indonesian coal exporter impact")
+
+    cpo_chg = change_of(scraped, "cpo")
+    if cpo_chg is not None and abs(cpo_chg) > 2:
+        direction = "up" if cpo_chg > 0 else "down"
+        bullets.append(f"CPO {direction} {abs(cpo_chg):.2f}% — palm oil relevance for Indonesian agri")
+
+    tin_chg = change_of(scraped, "tin")
+    if tin_chg is not None and abs(tin_chg) > 2:
+        direction = "up" if tin_chg > 0 else "down"
+        bullets.append(f"Tin {direction} {abs(tin_chg):.2f}% — Indonesia top global producer")
+
+    brent_chg = change_of(data, "brent")
+    if brent_chg is not None and abs(brent_chg) > 3:
+        direction = "spiked" if brent_chg > 0 else "dropped"
+        bullets.append(f"Brent {direction} {abs(brent_chg):.2f}% — energy shock, watch inflation / fuel subsidy pressure")
+
+    hy_val = value_of(fred, "hy_spread")
+    if hy_val is not None and hy_val > 4.5:
+        bullets.append(f"HY spread at {hy_val:.2f}% — credit stress building, risk-off regime")
+
+    rc_val = signals.get("rate_cut_spread", {}).get("value")
+    if rc_val is not None and rc_val < -0.5:
+        bullets.append(f"2Y-Fed at {rc_val:+.2f}% — market pricing aggressive cuts, liquidity incoming")
+
+    if prev_snapshot:
+        prev_score = prev_snapshot.get("_verdict_score")
+        today_score = verdict.get("score")
+        if prev_score is not None and today_score is not None and prev_score != today_score:
+            trend = "improving" if today_score > prev_score else "deteriorating"
+            bullets.append(f"Scorecard {trend}: {prev_score}/4 yesterday → {today_score}/4 today")
+
+    if not bullets:
+        if verdict["score"] >= 3:
+            bullets.append("All quiet — risk signals aligned, markets calm")
+        elif verdict["score"] <= 1:
+            bullets.append("Risk-off regime persists — watch for flight-to-quality moves")
+        else:
+            bullets.append("Mixed signals — no major moves, stay selective")
+
+    return bullets[:5]
+
+
+def build_output(yahoo, fred, crypto, scraped, history=None):
     all_data = {}
     all_data.update(yahoo)
     all_data.update(fred)
@@ -314,6 +425,15 @@ def build_output(yahoo, fred, crypto, scraped):
     all_data.update(scraped)
 
     signals, verdict = compute_signals(all_data)
+
+    prev_snapshot = previous_day_snapshot(history) if history else None
+    prev_signals = (prev_snapshot or {}).get("_signals", {})
+    for key, signal in signals.items():
+        prev = prev_signals.get(key)
+        signal["previous_status"] = prev
+        signal["flipped"] = prev is not None and prev != signal["status"]
+
+    attention = generate_attention(all_data, fred, scraped, signals, verdict, prev_snapshot)
 
     spread_2s10s = None
     ust10y = fred.get("ust10y", {}).get("value")
@@ -345,6 +465,7 @@ def build_output(yahoo, fred, crypto, scraped):
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "signals": signals,
         "verdict": verdict,
+        "attention": attention,
         "equities": {
             "sp500": entry("sp500"),
             "nasdaq": entry("nasdaq"),
@@ -409,15 +530,28 @@ def main():
     scraped = scrape_tradingeconomics()
     print("done")
 
-    output = build_output(yahoo, fred, crypto, scraped)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    history_path = os.path.join(base_dir, "history.json")
+    history = load_history(history_path)
 
-    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.json")
+    output = build_output(yahoo, fred, crypto, scraped, history)
+
+    out_path = os.path.join(base_dir, "data.json")
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2)
 
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    history[today] = flatten_snapshot(output)
+    save_history(history_path, history)
+
     print(f"\nData written to {out_path}")
+    print(f"History entries: {len(history)} (last {HISTORY_DAYS} days)")
     print(f"Timestamp: {output['timestamp']}")
     print(f"Verdict: {output['verdict']['label']} ({output['verdict']['score']}/{output['verdict']['total']})")
+    if output.get("attention"):
+        print("Attention:")
+        for b in output["attention"]:
+            print(f"  - {b}")
 
     null_count = 0
     total_count = 0

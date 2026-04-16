@@ -5,6 +5,7 @@
 
 # Data output
 data.json
+history.json
 
 # Python
 __pycache__/

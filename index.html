@@ -18,7 +18,7 @@
 
   header {
     text-align: center;
-    margin-bottom: 28px;
+    margin-bottom: 20px;
   }
 
   header h1 {
@@ -35,11 +35,25 @@
     margin-top: 4px;
   }
 
+  .staleness-banner {
+    display: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.85rem;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .staleness-banner.fresh { display: none; }
+  .staleness-banner.aging { display: block; background: #fff3cd; color: #856404; }
+  .staleness-banner.stale { display: block; background: #f8d7da; color: #721c24; }
+
   .verdict-section {
     background: #fff;
     border-radius: 12px;
     padding: 28px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     text-align: center;
   }
@@ -81,6 +95,7 @@
     border-radius: 8px;
     padding: 14px 12px;
     text-align: center;
+    position: relative;
   }
 
   .signal-card.clear { background: #e8f5e9; border: 1px solid #a5d6a7; }
@@ -117,6 +132,57 @@
   .signal-card.clear .signal-status { color: #2e7d32; }
   .signal-card.caution .signal-status { color: #c62828; }
 
+  .flip-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: #1a1a2e;
+    color: #fff;
+    letter-spacing: 0.04em;
+  }
+
+  .attention-card {
+    background: #fffbea;
+    border-left: 4px solid #f59e0b;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .attention-card h2 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #78350f;
+    margin-bottom: 10px;
+  }
+
+  .attention-card ul {
+    list-style: none;
+  }
+
+  .attention-card li {
+    font-size: 0.88rem;
+    color: #1a1a2e;
+    padding: 4px 0 4px 18px;
+    position: relative;
+    line-height: 1.4;
+  }
+
+  .attention-card li::before {
+    content: "\25B8";
+    position: absolute;
+    left: 0;
+    color: #f59e0b;
+    font-weight: 700;
+  }
+
   .cards-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -151,6 +217,7 @@
     align-items: center;
     padding: 6px 0;
     border-bottom: 1px solid #f5f5f5;
+    gap: 8px;
   }
 
   .data-row:last-child { border-bottom: none; }
@@ -159,6 +226,19 @@
     font-size: 0.82rem;
     color: #555;
     flex: 1;
+    min-width: 0;
+  }
+
+  .data-spark {
+    width: 60px;
+    height: 20px;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+
+  .data-spark.empty {
+    width: 60px;
+    height: 20px;
   }
 
   .data-value {
@@ -166,7 +246,7 @@
     font-weight: 600;
     color: #1a1a2e;
     text-align: right;
-    min-width: 80px;
+    min-width: 75px;
   }
 
   .data-change {
@@ -174,7 +254,6 @@
     font-weight: 600;
     text-align: right;
     min-width: 70px;
-    margin-left: 8px;
   }
 
   .data-change.positive { color: #2e7d32; }
@@ -210,11 +289,17 @@
 </header>
 
 <div id="error-banner"></div>
+<div class="staleness-banner" id="staleness-banner"></div>
 
 <div class="verdict-section" id="verdict-section">
   <div class="verdict-badge" id="verdict-badge">—</div>
   <div class="verdict-score" id="verdict-score"></div>
   <div class="signals-row" id="signals-row"></div>
+</div>
+
+<div class="attention-card" id="attention-card" style="display:none">
+  <h2>Needs Your Attention</h2>
+  <ul id="attention-list"></ul>
 </div>
 
 <div class="cards-grid" id="cards-grid"></div>
@@ -234,12 +319,36 @@
     return;
   }
 
+  let history = {};
+  try {
+    const h = await fetch("history.json");
+    if (h.ok) history = await h.json();
+  } catch (e) {}
+
   document.getElementById("timestamp").textContent =
     "Last updated: " + new Date(data.timestamp).toLocaleString();
 
+  renderStaleness(data.timestamp);
   renderVerdict(data.verdict);
   renderSignals(data.signals);
-  renderCards(data);
+  renderAttention(data.attention);
+  renderCards(data, history);
+
+  function renderStaleness(timestamp) {
+    const banner = document.getElementById("staleness-banner");
+    const ageMs = Date.now() - new Date(timestamp).getTime();
+    const ageHours = ageMs / (1000 * 60 * 60);
+
+    if (ageHours < 6) {
+      banner.className = "staleness-banner fresh";
+    } else if (ageHours < 24) {
+      banner.className = "staleness-banner aging";
+      banner.textContent = "\u26A0 Data is " + Math.round(ageHours) + " hours old — refresh scheduled daily";
+    } else {
+      banner.className = "staleness-banner stale";
+      banner.textContent = "\u26A0 Data is " + Math.round(ageHours) + " hours old — scheduled refresh may have failed";
+    }
+  }
 
   function renderVerdict(verdict) {
     const badge = document.getElementById("verdict-badge");
@@ -295,7 +404,13 @@
       const valStr = signal.value != null ? (fmt[key] ? fmt[key](signal.value) : signal.value) : "N/A";
       const statusStr = signal.status === "clear" ? "\u2705 CLEAR" : "\u{1F534} CAUTION";
 
+      let flipBadge = "";
+      if (signal.flipped && signal.previous_status) {
+        flipBadge = '<div class="flip-badge">FLIP</div>';
+      }
+
       card.innerHTML =
+        flipBadge +
         '<div class="signal-name">' + labels[key] + '</div>' +
         '<div class="signal-value">' + valStr + '</div>' +
         '<div class="signal-threshold">Target: ' + threshFmt[key] + '</div>' +
@@ -305,7 +420,20 @@
     }
   }
 
-  function renderCards(data) {
+  function renderAttention(bullets) {
+    if (!bullets || bullets.length === 0) return;
+    const card = document.getElementById("attention-card");
+    const list = document.getElementById("attention-list");
+    list.innerHTML = "";
+    for (const b of bullets) {
+      const li = document.createElement("li");
+      li.textContent = b;
+      list.appendChild(li);
+    }
+    card.style.display = "block";
+  }
+
+  function renderCards(data, history) {
     const grid = document.getElementById("cards-grid");
     grid.innerHTML = "";
 
@@ -336,10 +464,12 @@
         const valStr = item.value != null ? formatValue(key, item.value) : '<span class="na">N/A</span>';
         const unit = unitHints[key] || "";
         const changeStr = formatChange(item.change, key);
+        const spark = sparkline(historyValues(history, key));
 
         html +=
           '<div class="data-row" data-key="' + key + '">' +
             '<span class="data-name">' + item.name + '</span>' +
+            spark +
             '<span class="data-value">' + valStr + (item.value != null ? unit : "") + '</span>' +
             '<span class="data-change ' + changeClass(item.change) + '">' + changeStr + '</span>' +
           '</div>';
@@ -356,6 +486,35 @@
       card.innerHTML = html;
       grid.appendChild(card);
     }
+  }
+
+  function historyValues(history, key) {
+    const dates = Object.keys(history).sort();
+    const values = [];
+    for (const d of dates) {
+      const v = history[d][key];
+      if (typeof v === "number") values.push(v);
+    }
+    return values;
+  }
+
+  function sparkline(values) {
+    if (!values || values.length < 2) {
+      return '<svg class="data-spark empty" viewBox="0 0 60 20"><line x1="0" y1="10" x2="60" y2="10" stroke="#ddd" stroke-width="1" stroke-dasharray="2,2"/></svg>';
+    }
+    const w = 60, h = 20;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const pts = values.map((v, i) => {
+      const x = (i / (values.length - 1)) * w;
+      const y = h - ((v - min) / range) * (h - 2) - 1;
+      return x.toFixed(1) + "," + y.toFixed(1);
+    }).join(" ");
+    const last = values[values.length - 1];
+    const first = values[0];
+    const color = last > first ? "#2e7d32" : last < first ? "#c62828" : "#999";
+    return '<svg class="data-spark" viewBox="0 0 60 20"><polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
 
   function formatValue(key, val) {
