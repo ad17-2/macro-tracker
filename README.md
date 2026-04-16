@@ -95,11 +95,25 @@ Verdict is the count of clear signals mapped to a label (see table above).
 
 ## Automating daily refresh
 
-Add to `crontab -e` (runs every weekday at 6pm local):
+**Local cron** — add to `crontab -e` (runs every weekday at 6pm local):
 
 ```cron
 0 18 * * 1-5 cd /path/to/macro-tracker && /usr/bin/python fetch.py >> /tmp/macro-tracker.log 2>&1
 ```
+
+**Deployed** — run `server.py` instead of `fetch.py`. It fetches on startup, re-fetches every `FETCH_INTERVAL_HOURS` (default 12), and serves the dashboard on `$PORT`.
+
+## Deploy to Railway
+
+```bash
+railway login
+railway init --name macro-tracker
+railway variables --set "FRED_API_KEY=your_key_here"
+railway up
+railway domain
+```
+
+Railway auto-detects Python via Nixpacks, installs `requirements.txt`, and runs `python server.py` per `Procfile`. Dashboard refreshes every 12 hours automatically — tune via `FETCH_INTERVAL_HOURS` variable.
 
 ## Mobile
 
