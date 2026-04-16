@@ -365,7 +365,7 @@
 </div>
 
 <div class="attention-card has-tooltip" id="attention-card" style="display:none"
-     data-tooltip="Rule-based callouts for Indonesian investor: IDR moves > 0.5%, nickel/coal/CPO/tin moves > 2%, Brent shock > 3%, credit stress (HY > 4.5%), aggressive rate cuts priced (2Y-Fed < -0.5%), DXY 30d trend > 1.5%, and scorecard score flips overnight.">
+     data-tooltip="Indonesia-focused rule bullets. Fire on large moves in IDR / nickel / coal / CPO / tin / Brent, credit or rate extremes, and scorecard flips.">
   <h2>Needs Your Attention</h2>
   <ul id="attention-list"></ul>
 </div>
@@ -437,10 +437,10 @@
     };
 
     const tooltipMap = {
-      "FULL RISK-ON": "All 4 signals clear. Volatility low, dollar weakening, rate cuts priced in, credit relaxed. Highest-conviction risk-on regime.",
-      "LEANING RISK-ON": "3 of 4 signals clear. Mostly constructive — watch the outlier signal that's still in caution.",
-      "MIXED": "2 of 4 signals clear. No dominant direction. Selective positioning recommended.",
-      "RISK-OFF": "Only 1 or 0 signals clear. Defensive regime — capital flight, credit stress, or policy tightness dominate."
+      "FULL RISK-ON": "4/4 clear. Highest-conviction risk-on regime.",
+      "LEANING RISK-ON": "3/4 clear. Mostly constructive — watch the outlier.",
+      "MIXED": "2/4 clear. No dominant direction.",
+      "RISK-OFF": "\u22641/4 clear. Defensive regime."
     };
 
     badge.textContent = (emojiMap[verdict.label] || "") + " " + verdict.label;
@@ -467,10 +467,10 @@
     };
 
     const tooltips = {
-      vix: "Equity volatility index (options-implied). Above 20 = fear elevated, hedging dominant. Below 20 = market confident. Single best short-term gauge of risk appetite.",
-      dxy: "US dollar strength vs major currencies. Dynamic rule (once 30d history available): clear only if level < 99 AND 30d change < \u22120.5%. Weakening dollar = capital rotating to EM (good for Indonesia). Falls back to static < 98 while history is shallow.",
-      rate_cut_spread: "UST 2Y yield minus Fed funds rate. Negative = market pricing rate cuts ahead (liquidity incoming). Positive = no cuts priced. Better than raw 2Y because it self-adapts across hiking/cutting cycles.",
-      hy_spread: "High-yield bond spread over Treasuries (ICE BofA). Bond market's direct risk-appetite gauge. Compressed < 3.5% = credit markets relaxed. Widening > 4.5% = default risk rising, risk-off brewing."
+      vix: "Equity fear gauge. <20 = calm, >20 = hedging regime.",
+      dxy: "USD vs basket. Clear = weakening dollar (EM tailwind). Direction beats level once 30d history is available.",
+      rate_cut_spread: "2Y yield minus Fed funds. Negative = cuts priced in, liquidity incoming. Self-adapts across cycles.",
+      hy_spread: "Credit risk premium. Compressed = relaxed; widening = default risk rising."
     };
 
     for (const [key, signal] of Object.entries(signals)) {
