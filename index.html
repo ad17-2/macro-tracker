@@ -279,6 +279,73 @@
     font-size: 0.85rem;
     text-align: center;
   }
+
+  .has-tooltip { position: relative; cursor: help; }
+
+  .has-tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a2e;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: 0;
+    text-transform: none;
+    text-align: left;
+    width: 240px;
+    white-space: normal;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  .has-tooltip::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1a1a2e;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+    z-index: 10;
+  }
+
+  .has-tooltip:hover::after,
+  .has-tooltip:hover::before { opacity: 1; }
+
+  .info-icon {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #d0d5da;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-align: center;
+    line-height: 14px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+
+  .dxy-mode-label {
+    font-size: 0.65rem;
+    color: #888;
+    margin-top: 2px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
 </style>
 </head>
 <body>
@@ -297,7 +364,8 @@
   <div class="signals-row" id="signals-row"></div>
 </div>
 
-<div class="attention-card" id="attention-card" style="display:none">
+<div class="attention-card has-tooltip" id="attention-card" style="display:none"
+     data-tooltip="Rule-based callouts for Indonesian investor: IDR moves > 0.5%, nickel/coal/CPO/tin moves > 2%, Brent shock > 3%, credit stress (HY > 4.5%), aggressive rate cuts priced (2Y-Fed < -0.5%), DXY 30d trend > 1.5%, and scorecard score flips overnight.">
   <h2>Needs Your Attention</h2>
   <ul id="attention-list"></ul>
 </div>
@@ -368,8 +436,16 @@
       "RISK-OFF": "\u{1F534}"
     };
 
+    const tooltipMap = {
+      "FULL RISK-ON": "All 4 signals clear. Volatility low, dollar weakening, rate cuts priced in, credit relaxed. Highest-conviction risk-on regime.",
+      "LEANING RISK-ON": "3 of 4 signals clear. Mostly constructive — watch the outlier signal that's still in caution.",
+      "MIXED": "2 of 4 signals clear. No dominant direction. Selective positioning recommended.",
+      "RISK-OFF": "Only 1 or 0 signals clear. Defensive regime — capital flight, credit stress, or policy tightness dominate."
+    };
+
     badge.textContent = (emojiMap[verdict.label] || "") + " " + verdict.label;
-    badge.className = "verdict-badge " + (classMap[verdict.label] || "");
+    badge.className = "verdict-badge has-tooltip " + (classMap[verdict.label] || "");
+    badge.setAttribute("data-tooltip", tooltipMap[verdict.label] || "");
     score.textContent = verdict.score + "/" + verdict.total + " signals clear";
   }
 
@@ -389,17 +465,19 @@
       rate_cut_spread: v => (v > 0 ? "+" : "") + v.toFixed(2) + "%",
       hy_spread: v => v.toFixed(2) + "%",
     };
-    const threshFmt = {
-      vix: "< 20",
-      dxy: "< 98",
-      rate_cut_spread: "< \u22120.25%",
-      hy_spread: "< 3.50%",
+
+    const tooltips = {
+      vix: "Equity volatility index (options-implied). Above 20 = fear elevated, hedging dominant. Below 20 = market confident. Single best short-term gauge of risk appetite.",
+      dxy: "US dollar strength vs major currencies. Dynamic rule (once 30d history available): clear only if level < 99 AND 30d change < \u22120.5%. Weakening dollar = capital rotating to EM (good for Indonesia). Falls back to static < 98 while history is shallow.",
+      rate_cut_spread: "UST 2Y yield minus Fed funds rate. Negative = market pricing rate cuts ahead (liquidity incoming). Positive = no cuts priced. Better than raw 2Y because it self-adapts across hiking/cutting cycles.",
+      hy_spread: "High-yield bond spread over Treasuries (ICE BofA). Bond market's direct risk-appetite gauge. Compressed < 3.5% = credit markets relaxed. Widening > 4.5% = default risk rising, risk-off brewing."
     };
 
     for (const [key, signal] of Object.entries(signals)) {
       const card = document.createElement("div");
-      card.className = "signal-card " + signal.status;
+      card.className = "signal-card has-tooltip " + signal.status;
       card.setAttribute("data-signal", key);
+      card.setAttribute("data-tooltip", tooltips[key] || "");
 
       const valStr = signal.value != null ? (fmt[key] ? fmt[key](signal.value) : signal.value) : "N/A";
       const statusStr = signal.status === "clear" ? "\u2705 CLEAR" : "\u{1F534} CAUTION";
@@ -409,15 +487,35 @@
         flipBadge = '<div class="flip-badge">FLIP</div>';
       }
 
+      const thresholdDisplay = describeSignalThreshold(key, signal);
+      const modeLabel = signal.mode === "trend"
+        ? '<div class="dxy-mode-label">level + 30d trend</div>'
+        : (key === "dxy" ? '<div class="dxy-mode-label">static (history seeding)</div>' : "");
+
       card.innerHTML =
         flipBadge +
         '<div class="signal-name">' + labels[key] + '</div>' +
         '<div class="signal-value">' + valStr + '</div>' +
-        '<div class="signal-threshold">Target: ' + threshFmt[key] + '</div>' +
+        '<div class="signal-threshold">' + thresholdDisplay + '</div>' +
+        modeLabel +
         '<div class="signal-status">' + statusStr + '</div>';
 
       row.appendChild(card);
     }
+  }
+
+  function describeSignalThreshold(key, signal) {
+    if (key === "dxy" && signal.mode === "trend") {
+      const chg = signal.change_30d != null ? (signal.change_30d > 0 ? "+" : "") + signal.change_30d.toFixed(2) + "%" : "?";
+      return "< 99 AND 30d " + chg + " < \u22120.5%";
+    }
+    const staticThresh = {
+      vix: "< 20",
+      dxy: "< 98",
+      rate_cut_spread: "< \u22120.25%",
+      hy_spread: "< 3.50%",
+    };
+    return "Target: " + (staticThresh[key] || "");
   }
 
   function renderAttention(bullets) {
