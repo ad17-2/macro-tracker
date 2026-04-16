@@ -254,7 +254,12 @@ def compute_signals(data):
     vix_val = data.get("vix", {}).get("value")
     dxy_val = data.get("dxy", {}).get("value")
     ust2y_val = data.get("ust2y", {}).get("value")
-    btc_val = data.get("btc", {}).get("value")
+    fed_funds_val = data.get("fed_funds", {}).get("value")
+    hy_spread_val = data.get("hy_spread", {}).get("value")
+
+    rate_cut_spread = None
+    if ust2y_val is not None and fed_funds_val is not None:
+        rate_cut_spread = round(ust2y_val - fed_funds_val, 4)
 
     signals = {
         "vix": {
@@ -269,17 +274,17 @@ def compute_signals(data):
             "direction": "below",
             "status": "clear" if dxy_val is not None and dxy_val < 98 else "caution",
         },
-        "ust2y": {
-            "value": ust2y_val,
+        "rate_cut_spread": {
+            "value": rate_cut_spread,
+            "threshold": -0.25,
+            "direction": "below",
+            "status": "clear" if rate_cut_spread is not None and rate_cut_spread < -0.25 else "caution",
+        },
+        "hy_spread": {
+            "value": hy_spread_val,
             "threshold": 3.50,
             "direction": "below",
-            "status": "clear" if ust2y_val is not None and ust2y_val < 3.50 else "caution",
-        },
-        "btc": {
-            "value": btc_val,
-            "threshold": 72000,
-            "direction": "above",
-            "status": "clear" if btc_val is not None and btc_val > 72000 else "caution",
+            "status": "clear" if hy_spread_val is not None and hy_spread_val < 3.50 else "caution",
         },
     }
 

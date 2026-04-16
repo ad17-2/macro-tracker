@@ -268,9 +268,24 @@
     const row = document.getElementById("signals-row");
     row.innerHTML = "";
 
-    const labels = { vix: "VIX", dxy: "DXY", ust2y: "UST 2Y", btc: "BTC" };
-    const fmt = { vix: v => v.toFixed(2), dxy: v => v.toFixed(2), ust2y: v => v.toFixed(2) + "%", btc: v => "$" + v.toLocaleString() };
-    const threshFmt = { vix: "< 20", dxy: "< 98", ust2y: "< 3.50%", btc: "> $72,000" };
+    const labels = {
+      vix: "VIX",
+      dxy: "DXY",
+      rate_cut_spread: "2Y \u2212 Fed",
+      hy_spread: "HY Spread",
+    };
+    const fmt = {
+      vix: v => v.toFixed(2),
+      dxy: v => v.toFixed(2),
+      rate_cut_spread: v => (v > 0 ? "+" : "") + v.toFixed(2) + "%",
+      hy_spread: v => v.toFixed(2) + "%",
+    };
+    const threshFmt = {
+      vix: "< 20",
+      dxy: "< 98",
+      rate_cut_spread: "< \u22120.25%",
+      hy_spread: "< 3.50%",
+    };
 
     for (const [key, signal] of Object.entries(signals)) {
       const card = document.createElement("div");
